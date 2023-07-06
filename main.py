@@ -2,56 +2,98 @@ import requests
 import csv
 from bs4 import BeautifulSoup
 
-# URL of the professor's page
-url = 'https://www.ratemyprofessors.com/professor/2322926'
+# Candidate url #s
+start_url = 10001
+end_url = 15000
 
-# Send a GET request to the URL
-response = requests.get(url)
+# Prepare an empty list to store the review data
+reviews_data = []
 
-# Check if the request was successful
-if response.status_code == 200:
-    # Parse the HTML content using BeautifulSoup
-    soup = BeautifulSoup(response.content, 'html.parser')
+# Loop through all possible URLs
+for i in range(start_url, end_url):
 
-    # Find all the review elements
-    reviews = soup.find_all(class_='RatingsList__RatingsUL-hn9one-0 cbdtns')
+  # URL of the webpage to crawl
+  url = f'https://www.ratemyprofessors.com/professor/{i}'
 
-    # Create a list to store the data
-    data = []
+  # Send a GET request to the URL
+  response = requests.get(url)
+  
+  # Create a BeautifulSoup object from the response content
+  soup = BeautifulSoup(response.content, "html.parser")
 
-    # Extract the required information from each review
-    for review in reviews:
+  # Try to crawl the page
+  try:
+    
+    # Find the container for all class reviews
+    reviews_container = soup.find(class_="RatingsList__RatingsUL-hn9one-0 cbdtns")
+    
+    # Find all class review tags within the container
+    class_reviews = reviews_container.find_all(class_="Rating__RatingBody-sc-1rhvpxz-0 dGrvXb")
+  
+    
+    # Loop through the class review tags
+    for review in class_reviews:
+        # Extract the required data from each review
         school_name = soup.find(class_='NameTitle__Title-dowf0z-1 iLYGwn').text.strip().split("at ",1)[1]
         print(school_name)
-        class_name = review.find(class_='RatingHeader__StyledClass-sc-1dlkqw1-3 eXfReS').text.strip()
-        print(class_name)
-        class_code = review.find(class_='Comments__StyledComments-dzzyvm-0 gRjWel').text.strip()
+        class_code = review.find(class_='RatingHeader__StyledClass-sc-1dlkqw1-3 eXfReS').text.strip()
         print(class_code)
         professor_name = soup.find(class_='NameTitle__LastNameWrapper-dowf0z-2 glXOHH').text.strip()
         print(professor_name)
         rating_date = review.find(class_='TimeStamp__StyledTimeStamp-sc-9q2r30-0 bXQmMr RatingHeader__RatingTimeStamp-sc-1dlkqw1-4 iwwYJD').text.strip()
         print(rating_date)
-        review_content = review.find(class_='CardNumRating__CardNumRatingNumber-sc-17t4b9u-2 gcFhmN').text.strip()
+        class_rating = review.find(class_="CardNumRating__CardNumRatingNumber-sc-17t4b9u-2").text.strip()
+        print(class_rating)
+        review_content = review.find(class_='Comments__StyledComments-dzzyvm-0 gRjWel').text.strip()
         print(review_content)
+    
+        if review.find(class_="CourseMeta__StyledCourseMeta-x344ms-0 fPJDHT").text.strip():
+          would_take_again_div = review.find(class_="CourseMeta__StyledCourseMeta-x344ms-0 fPJDHT").text.strip()
+          if "Would Take Again" in would_take_again_div:
+            would_take_again = would_take_again_div[would_take_again_div.find("Would Take Again: ") + len("Would Take Again: "):would_take_again_div.find("Grade", would_take_again_div.find("Would Take Again: "))]
+            print(would_take_again)
+          else:
+            would_take_again = ""
+    
+        if review.find(class_="CourseMeta__StyledCourseMeta-x344ms-0 fPJDHT").text.strip():
+          attendance_div = review.find(class_="CourseMeta__StyledCourseMeta-x344ms-0 fPJDHT").text.strip()
+          if "Attendance" in attendance_div:
+            attendance = attendance_div[attendance_div.find("Attendance: ") + len("Attendance: "):attendance_div.find("Would Take Again", attendance_div.find("Attendance: "))]
+            print(attendance)
+          else:
+            attendance = ""
+    
+        if review.find(class_="CourseMeta__StyledCourseMeta-x344ms-0 fPJDHT").text.strip():
+          grade_div = review.find(class_="CourseMeta__StyledCourseMeta-x344ms-0 fPJDHT").text.strip()
+          if "Grade" in grade_div:
+            grade = grade_div[grade_div.find("Grade: ") + len("Grade: "):attendance_div.find("Textbook: ", grade_div.find("Grade: "))]
+            print(grade)
+          else:
+            grade = ""
+        
+        # Append the review data as a dictionary to the list
+        review_data = {
+            "school_name": school_name,
+            "class_code": class_code,
+            "professor_name": professor_name,
+            "rating_date": rating_date,
+            "class_rating": class_rating,
+            "review_content": review_content,
+            "would_take_again": would_take_again,
+            "attendance": attendance,
+            "grade": grade
+        }
+        reviews_data.append(review_data)
+    
+  except:
+      pass
+    
+# Save the reviews as a CSV file
+filename = "class_reviews.csv"
+fieldnames = ["school_name", "class_code", "professor_name", "rating_date", "class_rating", "review_content", "would_take_again", "attendance", "grade"]
+with open(filename, "w", newline="", encoding="utf-8") as csvfile:
+    writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+    writer.writeheader()
+    writer.writerows(reviews_data)
 
-        # Append the data to the list
-        data.append({
-            'School Name': school_name,
-            'Class Name': class_name,
-            'Class Code': class_code,
-            'Professor Name': professor_name,
-            'Rating Data': rating_date,
-            'Review Content': review_content
-        })
-
-    # Write the data to a CSV file
-    filename = 'professor_reviews.csv'
-    with open(filename, 'w', newline='', encoding='utf-8') as file:
-        writer = csv.DictWriter(file, fieldnames=data[0].keys())
-        writer.writeheader()
-        writer.writerows(data)
-
-    print(f"Data saved successfully in '{filename}'")
-
-else:
-    print('Failed to retrieve the page.')
+print("Class reviews have been saved as", filename)
